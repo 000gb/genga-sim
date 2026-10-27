@@ -1,0 +1,675 @@
+<title>原価シミュレーター</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="原価シミュ">
+<meta name="theme-color" content="#7c5cbf">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap">
+<style>
+:root {
+  --bg:#f7f5fb;--bg-card:#ffffff;--fg:#2d1f4e;--fg-muted:#7a6e8e;
+  --accent:#7c5cbf;--accent-soft:#ede8f9;--border:#ddd8ee;
+  --good:#2e9462;--warn:#c05f00;--bad:#bf2a2a;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1b1230;--bg-card:#261a40;--fg:#e8e0f7;--fg-muted:#9d8fc0;
+  --accent:#a07ee0;--accent-soft:#35275a;--border:#3e3060;
+  --good:#4cbd86;--warn:#e07830;--bad:#e05050;color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#1b1230;--bg-card:#261a40;--fg:#e8e0f7;--fg-muted:#9d8fc0;
+  --accent:#a07ee0;--accent-soft:#35275a;--border:#3e3060;
+  --good:#4cbd86;--warn:#e07830;--bad:#e05050;color-scheme:dark;
+}
+*{box-sizing:border-box;}
+body{
+  background:var(--bg);color:var(--fg);
+  font-family:'Zen Maru Gothic','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;
+  font-size:15px;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--accent);z-index:11;}
+.app-header{
+  position:sticky;top:env(safe-area-inset-top,0px);
+  background:var(--accent);color:#fff;
+  padding:13px max(16px,env(safe-area-inset-left,0px));
+  margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px)));
+  display:flex;align-items:center;gap:10px;z-index:10;
+}
+.app-header h1{margin:0;font-size:1.1rem;font-weight:700;}
+.tab-bar{
+  display:flex;
+  margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px)));
+  background:var(--bg-card);border-bottom:2px solid var(--border);
+}
+.tab-btn{
+  flex:1;padding:11px 4px;border:none;background:none;
+  color:var(--fg-muted);font-family:inherit;font-size:0.83rem;
+  cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;
+}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700;}
+.tab-content{display:none;padding-block:16px;}
+.tab-content.active{display:block;}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;}
+.card-title{font-size:0.72rem;font-weight:700;color:var(--fg-muted);letter-spacing:.1em;text-transform:uppercase;margin:0 0 14px;}
+.field{margin-bottom:11px;}
+.field:last-child{margin-bottom:0;}
+.field label{display:block;font-size:0.82rem;color:var(--fg-muted);margin-bottom:5px;}
+.field input[type="number"],.field input[type="text"],.field select{
+  width:100%;padding:9px 12px;
+  border:1.5px solid var(--border);border-radius:8px;
+  background:var(--bg);color:var(--fg);font-family:inherit;font-size:0.95rem;
+  font-variant-numeric:tabular-nums;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent);}
+.size-row{display:flex;align-items:center;gap:8px;}
+.size-row input{flex:1;}
+.size-row .sep{color:var(--fg-muted);font-size:.85rem;white-space:nowrap;}
+.chips{display:flex;gap:8px;flex-wrap:wrap;}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:7px 14px;border:1.5px solid var(--border);border-radius:20px;
+  background:var(--bg);color:var(--fg-muted);font-family:inherit;
+  font-size:.85rem;cursor:pointer;user-select:none;transition:all .15s;
+}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700;}
+.cost-table{width:100%;border-collapse:collapse;}
+.cost-table tr{border-bottom:1px solid var(--border);}
+.cost-table tr:last-child{border-bottom:none;}
+.cost-table td{padding:7px 2px;font-size:.88rem;}
+.cost-table td:first-child{color:var(--fg-muted);}
+.cost-table td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;}
+.cost-table .hint{font-size:.72rem;color:var(--fg-muted);display:block;}
+.cost-table .total-row td{border-top:2px solid var(--border);padding-top:11px;font-size:1rem;font-weight:700;color:var(--fg);}
+.cost-table .total-row td:first-child{color:var(--fg);}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.result-cell{text-align:center;padding:13px 8px;border-radius:10px;background:var(--accent-soft);}
+.result-cell .rlabel{font-size:.72rem;color:var(--fg-muted);margin-bottom:5px;}
+.result-cell .rval{font-size:1.3rem;font-weight:700;font-variant-numeric:tabular-nums;}
+.result-cell.good .rval{color:var(--good);}
+.result-cell.warn .rval{color:var(--warn);}
+.result-cell.bad .rval{color:var(--bad);}
+.srow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);}
+.srow:last-child{border-bottom:none;}
+.srow .slabel{flex:1;font-size:.88rem;}
+.srow .sunit{font-size:.72rem;color:var(--fg-muted);white-space:nowrap;}
+.srow input{width:90px;text-align:right;padding:7px 9px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-family:inherit;font-size:.88rem;font-variant-numeric:tabular-nums;}
+.srow input:focus{outline:none;border-color:var(--accent);}
+.list-item{display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid var(--border);}
+.list-item:last-child{border-bottom:none;}
+.list-item input[type="text"]{flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-family:inherit;font-size:.85rem;}
+.list-item input[type="number"]{width:68px;text-align:right;padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-family:inherit;font-size:.85rem;font-variant-numeric:tabular-nums;}
+.list-item input:focus{outline:none;border-color:var(--accent);}
+.list-item .lunit{font-size:.72rem;color:var(--fg-muted);white-space:nowrap;}
+.tape-chip{padding:4px 8px;border:1.5px solid var(--border);border-radius:14px;background:var(--bg);color:var(--fg-muted);font-family:inherit;font-size:.72rem;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.tape-chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700;}
+.btn-del{width:28px;height:28px;border:none;border-radius:50%;background:#fce8e8;color:var(--bad);font-size:1rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.btn-del:hover{background:var(--bad);color:#fff;}
+.btn-add-item{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:10px;padding:9px;border:1.5px dashed var(--border);border-radius:8px;background:none;color:var(--fg-muted);font-family:inherit;font-size:.85rem;cursor:pointer;}
+.btn-add-item:hover{border-color:var(--accent);color:var(--accent);}
+.btn-record{width:100%;margin-top:14px;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer;}
+.btn-record:hover{opacity:.9;}
+.rec-empty{text-align:center;padding:40px 16px;color:var(--fg-muted);font-size:.9rem;}
+.rec-wrap{overflow-x:auto;}
+.rec-table{width:100%;border-collapse:collapse;}
+.rec-table th,.rec-table td{padding:8px 5px;font-size:.82rem;border-bottom:1px solid var(--border);text-align:left;}
+.rec-table th{color:var(--fg-muted);font-weight:600;font-size:.75rem;}
+.rec-table td.num{text-align:right;font-variant-numeric:tabular-nums;}
+.rec-table .pp{color:var(--good);font-weight:700;}
+.rec-table .pn{color:var(--bad);font-weight:700;}
+.btn-rec-del{border:none;background:none;color:var(--fg-muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;}
+.btn-rec-del:hover{color:var(--bad);background:#fce8e8;}
+.save-note{font-size:.75rem;color:var(--fg-muted);text-align:center;padding:8px;min-height:24px;}
+</style>
+
+<div id="pin-overlay" style="position:fixed;inset:0;background:var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:20px;padding:24px">
+  <div style="font-size:2rem;">🧵</div>
+  <div style="color:#fff;font-weight:700;font-size:1.2rem;">原価シミュレーター</div>
+  <div id="pin-dots" style="display:flex;gap:14px;margin:8px 0">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+  </div>
+  <div id="pin-err" style="color:rgba(255,255,255,.7);font-size:.85rem;min-height:20px;"></div>
+  <div style="display:grid;grid-template-columns:repeat(3,72px);gap:10px">
+    <button class="pk" onclick="pk(1)">1</button><button class="pk" onclick="pk(2)">2</button><button class="pk" onclick="pk(3)">3</button>
+    <button class="pk" onclick="pk(4)">4</button><button class="pk" onclick="pk(5)">5</button><button class="pk" onclick="pk(6)">6</button>
+    <button class="pk" onclick="pk(7)">7</button><button class="pk" onclick="pk(8)">8</button><button class="pk" onclick="pk(9)">9</button>
+    <div></div><button class="pk" onclick="pk(0)">0</button><button class="pk pk-del" onclick="pkDel()">⌫</button>
+  </div>
+</div>
+<style>
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.6);background:transparent;transition:background .15s;}
+.dot.filled{background:#fff;border-color:#fff;}
+.pk{width:72px;height:72px;border:none;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-family:inherit;font-size:1.4rem;font-weight:500;cursor:pointer;}
+.pk:active{background:rgba(255,255,255,.35);}
+.pk-del{font-size:1.1rem;}
+</style>
+<script>
+const PIN='1234'; // ← ここを自分のPINに変更
+let pinBuf='';
+function pk(n){if(pinBuf.length>=4)return;pinBuf+=n;updateDots();if(pinBuf.length===4)checkPin();}
+function pkDel(){pinBuf=pinBuf.slice(0,-1);updateDots();document.getElementById('pin-err').textContent='';}
+function updateDots(){document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('filled',i<pinBuf.length));}
+function checkPin(){if(pinBuf===PIN){try{sessionStorage.setItem('genga_auth','1');}catch{}document.getElementById('pin-overlay').style.display='none';}else{pinBuf='';updateDots();const e=document.getElementById('pin-err');e.textContent='PINが違います';setTimeout(()=>e.textContent='',1500);}}
+(function(){try{if(sessionStorage.getItem('genga_auth')==='1')document.getElementById('pin-overlay').style.display='none';}catch{}})();
+</script>
+<header class="app-header"><h1>🧵 原価シミュレーター</h1></header>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="calc">📐 計算</button>
+  <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
+  <button class="tab-btn" data-tab="records">📋 記録</button>
+</nav>
+
+<main>
+<div id="tab-calc" class="tab-content active">
+  <div class="card">
+    <p class="card-title">商品情報</p>
+    <div class="field">
+      <label>商品名（任意）</label>
+      <input type="text" id="inp-name" placeholder="例：小さなラグ 15×35cm">
+    </div>
+    <div class="field">
+      <label>サイズ（作品の仕上がり）</label>
+      <div class="size-row">
+        <input type="number" id="inp-w" placeholder="幅" min="1">
+        <span class="sep">×</span>
+        <input type="number" id="inp-h" placeholder="高さ" min="1">
+        <span class="sep">cm</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>裏地の種類</label>
+      <select id="inp-backing-type"></select>
+    </div>
+    <div class="field">
+      <label>接着剤の種類</label>
+      <select id="inp-glue-type"></select>
+    </div>
+    <div class="field">
+      <label>糸の種類</label>
+      <select id="inp-yarn-type"></select>
+    </div>
+    <div class="field">
+      <label>糸の使用量</label>
+      <div class="size-row">
+        <input type="number" id="inp-yarn-g" placeholder="グラム数" min="0">
+        <span class="sep">g</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">梱包 · 送料</p>
+    <div class="field">
+      <label>梱包資材</label>
+      <div class="chips">
+        <label class="chip on" id="chip-cardboard"><input type="checkbox" style="display:none"> 段ボール</label>
+        <label class="chip on" id="chip-packing"><input type="checkbox" style="display:none"> プチプチ / 袋</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>顧客負担送料（商品代とは別途請求）</label>
+      <div class="size-row">
+        <input type="number" id="inp-ship-customer" min="0">
+        <span class="sep">円</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>実際の送料（追加コストがある場合）</label>
+      <div class="size-row">
+        <input type="number" id="inp-ship-actual" placeholder="0" min="0">
+        <span class="sep">円</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">原価内訳</p>
+    <table class="cost-table">
+      <tr><td>布<span id="hint-fabric" class="hint"></span></td><td id="val-fabric">—</td></tr>
+      <tr><td><span id="lbl-backing">裏地</span><span id="hint-backing" class="hint"></span></td><td id="val-backing">—</td></tr>
+      <tr id="row-tape"><td>バッキングテープ<span id="hint-tape" class="hint"></span></td><td id="val-tape">—</td></tr>
+      <tr><td><span id="lbl-glue">接着剤</span><span id="hint-glue" class="hint"></span></td><td id="val-glue">—</td></tr>
+      <tr><td>糸<span id="hint-yarn" class="hint"></span></td><td id="val-yarn">—</td></tr>
+      <tr><td>段ボール</td><td id="val-cardboard">—</td></tr>
+      <tr><td>梱包材</td><td id="val-packing">—</td></tr>
+      <tr><td>実際の送料</td><td id="val-shipping">—</td></tr>
+      <tr class="total-row"><td>原価合計</td><td id="val-total">—</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <p class="card-title">販売計算</p>
+    <div class="field">
+      <label>制作時間</label>
+      <div class="size-row">
+        <input type="number" id="inp-time" placeholder="例：120" min="0">
+        <span class="sep">分</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>販売価格</label>
+      <div class="size-row">
+        <input type="number" id="inp-sell" placeholder="0" min="0">
+        <span class="sep">円</span>
+      </div>
+    </div>
+    <div id="rev-summary" style="text-align:right;font-size:.82rem;color:var(--fg-muted);margin:2px 0 12px;min-height:18px;"></div>
+    <div class="result-grid">
+      <div class="result-cell" id="cell-profit"><div class="rlabel">利益</div><div class="rval" id="rval-profit">—</div></div>
+      <div class="result-cell" id="cell-margin"><div class="rlabel">利益率</div><div class="rval" id="rval-margin">—</div></div>
+      <div class="result-cell" id="cell-hourly"><div class="rlabel">時給換算</div><div class="rval" id="rval-hourly">—</div></div>
+      <div class="result-cell" id="cell-markup"><div class="rlabel">原価の何倍</div><div class="rval" id="rval-markup">—</div></div>
+    </div>
+    <button class="btn-record" onclick="saveRecord()">📋 この計算を記録する</button>
+  </div>
+  <p class="save-note" id="save-note"></p>
+</div>
+
+<div id="tab-settings" class="tab-content">
+  <div class="card">
+    <p class="card-title">布（タフティング用）</p>
+    <div class="srow">
+      <span class="slabel">布</span>
+      <input type="number" id="s-fabric" step="0.0001" min="0">
+      <span class="sunit">円/cm²</span>
+    </div>
+    <div class="srow"><span class="slabel" style="font-size:.72rem;color:var(--fg-muted)">参考: 210×200cm ¥4,000 → 0.0952円/cm²</span></div>
+    <div class="srow">
+      <span class="slabel">余白マージン（縦・横それぞれ加算）</span>
+      <input type="number" id="s-margin" min="0" step="1">
+      <span class="sunit">cm</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">裏地材</p>
+    <div id="backing-list"></div>
+    <button class="btn-add-item" onclick="addBacking()">＋ 裏地を追加</button>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="srow">
+        <span class="slabel">バッキングテープ（20m）</span>
+        <input type="number" id="s-tape-20m" step="1" min="0">
+        <span class="sunit">円</span>
+      </div>
+      <div class="srow"><span class="slabel" style="font-size:.72rem;color:var(--fg-muted)">参考: 20m ¥1,250 / 「テープ✓」の裏地で自動計算（周囲長+バッファー）</span></div>
+      <div class="srow">
+        <span class="slabel">テープ バッファー長</span>
+        <input type="number" id="s-tape-buf" step="1" min="0">
+        <span class="sunit">cm</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">接着剤</p>
+    <div id="glue-list"></div>
+    <button class="btn-add-item" onclick="addGlue()">＋ 接着剤を追加</button>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="srow">
+        <span class="slabel">使用量の比率</span>
+        <input type="number" id="s-glue-ratio" step="0.0001" min="0">
+        <span class="sunit">g/cm²</span>
+      </div>
+      <div class="srow"><span class="slabel" style="font-size:.72rem;color:var(--fg-muted)">参考: 15×35cm で90g → 0.1714g/cm²</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">梱包資材</p>
+    <div class="srow">
+      <span class="slabel">段ボール（1枚）</span>
+      <input type="number" id="s-cardboard" step="1" min="0">
+      <span class="sunit">円/枚</span>
+    </div>
+    <div class="srow"><span class="slabel" style="font-size:.72rem;color:var(--fg-muted)">参考: 10枚入り ¥2,650 → 265円/枚</span></div>
+    <div class="srow">
+      <span class="slabel">プチプチ / 袋 / 紙（1個分）</span>
+      <input type="number" id="s-packing" step="1" min="0">
+      <span class="sunit">円</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title">糸の種類と単価</p>
+    <div id="yarn-list"></div>
+    <button class="btn-add-item" onclick="addYarn()">＋ 糸を追加</button>
+  </div>
+  <p class="save-note" id="save-note2"></p>
+</div>
+
+<div id="tab-records" class="tab-content">
+  <div class="card">
+    <p class="card-title">商品記録</p>
+    <div id="records-content"></div>
+  </div>
+</div>
+</main>
+
+<script>
+const SKEY='genga_s2', CKEY='genga_c2', LKEY='genga_log';
+
+const DS={
+  fabric_per_cm2:0.0952,
+  backings:[
+    {name:'裏地用メッシュ', per_cm2:0.0523, has_tape:false},
+    {name:'バッキングクロス', per_cm2:0.0880, has_tape:true}
+  ],
+  tape_20m_price:1250,
+  tape_buf_cm:10,
+  glues:[
+    {name:'エコシル（泡立て不要）', per_g:1.98},
+    {name:'低周波（泡立て不要）',   per_g:1.98},
+    {name:'ラディテックス（泡立て必要）', per_g:2.10},
+    {name:'ボーダー', per_g:2.00}
+  ],
+  glue_ratio:0.1714,
+  cardboard:265,
+  packing:30,
+  margin_cm:10,
+  yarns:[{name:'ソフトアクリル', per_g:4.895}]
+};
+const DC={
+  name:'', width:15, height:35,
+  yarn_g:100, yarn_idx:0, glue_idx:0, backing_idx:0,
+  use_cardboard:true, use_packing:true,
+  ship_actual:0, ship_customer:400, time_min:120, sell:3000
+};
+
+function load(key,def){
+  try{const v=localStorage.getItem(key);if(!v)return JSON.parse(JSON.stringify(def));return Object.assign(JSON.parse(JSON.stringify(def)),JSON.parse(v));}
+  catch{return JSON.parse(JSON.stringify(def));}
+}
+function save(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch{}}
+
+let S=load(SKEY,DS);
+let C=load(CKEY,DC);
+if(!Array.isArray(S.yarns)||!S.yarns.length) S.yarns=JSON.parse(JSON.stringify(DS.yarns));
+if(!Array.isArray(S.glues)||!S.glues.length) S.glues=JSON.parse(JSON.stringify(DS.glues));
+if(!Array.isArray(S.backings)||!S.backings.length) S.backings=JSON.parse(JSON.stringify(DS.backings));
+
+function yen(v){
+  if(v===null||v===undefined||isNaN(v))return '—';
+  const n=Math.round(v);
+  return(n<0?'-¥':'¥')+Math.abs(n).toLocaleString('ja-JP');
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function compute(){
+  const w=+C.width||0, h=+C.height||0;
+  const mg=+S.margin_cm||0;
+  const matArea=(w+mg)*(h+mg);
+  const prodArea=w*h;
+  const fabric=matArea*(+S.fabric_per_cm2||0);
+
+  const backing=S.backings[C.backing_idx]||S.backings[0];
+  const backingCost=matArea*(+backing.per_cm2||0);
+
+  const tapePCm=(+S.tape_20m_price||0)/2000;
+  const perim=2*(w+h);
+  const tapeLen=backing.has_tape&&perim>0 ? perim+(+S.tape_buf_cm||0) : 0;
+  const tapeCost=tapeLen*tapePCm;
+
+  const glueT=S.glues[C.glue_idx]||S.glues[0];
+  const gluePG=glueT?+glueT.per_g||0:0;
+  const glue=prodArea*(+S.glue_ratio||0)*gluePG;
+
+  const yarn=S.yarns[C.yarn_idx]||S.yarns[0];
+  const yarnPG=yarn?+yarn.per_g||0:0;
+  const yarnG=+C.yarn_g||0;
+  const yarnCost=yarnG*yarnPG;
+
+  const card=C.use_cardboard?+S.cardboard||0:0;
+  const pack=C.use_packing?+S.packing||0:0;
+  const shipActual=+C.ship_actual||0;
+  const shipCustomer=+C.ship_customer||0;
+
+  const total=fabric+backingCost+tapeCost+glue+yarnCost+card+pack+shipActual;
+  const sell=+C.sell||0;
+  const totalRevenue=sell+shipCustomer;
+  const profit=totalRevenue-total;
+  const pct=totalRevenue>0?profit/totalRevenue*100:null;
+  const tH=(+C.time_min||0)/60;
+  const hourly=tH>0?profit/tH:null;
+  const markup=total>0?sell/total:null;
+
+  return{fabric,backingCost,tapeCost,tapeLen,glue,yarnCost,card,pack,
+         shipActual,shipCustomer,total,sell,totalRevenue,profit,pct,hourly,markup,
+         matArea,prodArea,yarnG,yarnPG,
+         backingName:backing.name,glueName:glueT?glueT.name:'',
+         yarnName:yarn?yarn.name:'',hasTape:backing.has_tape};
+}
+
+function render(){
+  const r=compute();
+  document.getElementById('lbl-backing').textContent=r.backingName||'裏地';
+  document.getElementById('lbl-glue').textContent=r.glueName||'接着剤';
+  document.getElementById('hint-fabric').textContent=r.matArea>0?`${r.matArea.toFixed(0)}cm²`:'';
+  document.getElementById('hint-backing').textContent=r.matArea>0?`${r.matArea.toFixed(0)}cm²`:'';
+  document.getElementById('hint-glue').textContent=r.prodArea>0?`${(r.prodArea*(+S.glue_ratio||0)).toFixed(0)}g`:'';
+  document.getElementById('hint-yarn').textContent=r.yarnG>0?`${r.yarnG}g`:'';
+
+  const tapeRow=document.getElementById('row-tape');
+  tapeRow.style.display=r.hasTape?'':'none';
+  if(r.hasTape){
+    document.getElementById('hint-tape').textContent=r.tapeLen>0?`${r.tapeLen.toFixed(0)}cm`:'';
+    document.getElementById('val-tape').textContent=yen(r.tapeCost);
+  }
+
+  document.getElementById('val-fabric').textContent=yen(r.fabric);
+  document.getElementById('val-backing').textContent=yen(r.backingCost);
+  document.getElementById('val-glue').textContent=yen(r.glue);
+  document.getElementById('val-yarn').textContent=yen(r.yarnCost);
+  document.getElementById('val-cardboard').textContent=r.card>0?yen(r.card):'—';
+  document.getElementById('val-packing').textContent=r.pack>0?yen(r.pack):'—';
+  document.getElementById('val-shipping').textContent=r.shipActual>0?yen(r.shipActual):'—';
+
+  const revEl=document.getElementById('rev-summary');
+  if(revEl) revEl.innerHTML=r.shipCustomer>0
+    ?`<span style="color:var(--fg-muted)">販売価格 ${yen(r.sell)}</span> <span style="color:var(--accent);font-weight:700"> + 送料 ${yen(r.shipCustomer)} ＝ 総収入 ${yen(r.totalRevenue)}</span>`:'';
+  document.getElementById('val-total').textContent=yen(r.total);
+
+  setCell('cell-profit','rval-profit',yen(r.profit),r.profit<0?'bad':r.profit<500?'warn':'good');
+  setCell('cell-margin','rval-margin',r.pct!==null?r.pct.toFixed(0)+'%':'—',r.pct===null?'':r.pct<30?'warn':'good');
+  setCell('cell-hourly','rval-hourly',r.hourly!==null?yen(r.hourly):'—',r.hourly===null?'':r.hourly<0?'bad':r.hourly<800?'warn':'good');
+  setCell('cell-markup','rval-markup',r.markup!==null?r.markup.toFixed(1)+'x':'—',r.markup===null?'':r.markup<2?'bad':r.markup<3?'warn':'good');
+}
+
+function setCell(cId,vId,txt,cls){
+  document.getElementById(vId).textContent=txt;
+  document.getElementById(cId).className='result-cell'+(cls?' '+cls:'');
+}
+
+function renderBackingSel(){
+  const sel=document.getElementById('inp-backing-type');if(!sel)return;
+  sel.innerHTML=S.backings.map((b,i)=>`<option value="${i}"${i===C.backing_idx?' selected':''}>${esc(b.name)}${b.has_tape?' ＋テープ':''}</option>`).join('');
+}
+function renderGlueSel(){
+  const sel=document.getElementById('inp-glue-type');if(!sel)return;
+  sel.innerHTML=S.glues.map((g,i)=>`<option value="${i}"${i===C.glue_idx?' selected':''}>${esc(g.name)} (${g.per_g}円/g)</option>`).join('');
+}
+function renderYarnSel(){
+  const sel=document.getElementById('inp-yarn-type');if(!sel)return;
+  sel.innerHTML=S.yarns.map((y,i)=>`<option value="${i}"${i===C.yarn_idx?' selected':''}>${esc(y.name)} (${y.per_g}円/g)</option>`).join('');
+}
+
+function renderBackingList(){
+  document.getElementById('backing-list').innerHTML=S.backings.map((b,i)=>`
+    <div class="list-item" data-bi="${i}">
+      <input type="text" class="bn" value="${esc(b.name)}" placeholder="裏地の名前">
+      <input type="number" class="bp" value="${b.per_cm2}" step="0.0001" min="0">
+      <span class="lunit">円/cm²</span>
+      <button class="tape-chip${b.has_tape?' on':''}" data-ti="${i}">${b.has_tape?'テープ✓':'テープ'}</button>
+      ${S.backings.length>1?`<button class="btn-del" onclick="delBacking(${i})">×</button>`:'<div style="width:28px"></div>'}
+    </div>`).join('');
+}
+function renderGlueList(){
+  document.getElementById('glue-list').innerHTML=S.glues.map((g,i)=>`
+    <div class="list-item" data-gi="${i}">
+      <input type="text" class="gn" value="${esc(g.name)}" placeholder="接着剤の名前">
+      <input type="number" class="gp" value="${g.per_g}" step="0.01" min="0">
+      <span class="lunit">円/g</span>
+      ${S.glues.length>1?`<button class="btn-del" onclick="delGlue(${i})">×</button>`:'<div style="width:28px"></div>'}
+    </div>`).join('');
+}
+function renderYarnList(){
+  document.getElementById('yarn-list').innerHTML=S.yarns.map((y,i)=>`
+    <div class="list-item" data-yi="${i}">
+      <input type="text" class="yn" value="${esc(y.name)}" placeholder="糸の名前">
+      <input type="number" class="yp" value="${y.per_g}" step="0.01" min="0">
+      <span class="lunit">円/g</span>
+      ${S.yarns.length>1?`<button class="btn-del" onclick="delYarn(${i})">×</button>`:'<div style="width:28px"></div>'}
+    </div>`).join('');
+}
+
+let saveT=null;
+function autoSave(){
+  clearTimeout(saveT);
+  saveT=setTimeout(()=>{
+    save(SKEY,S);save(CKEY,C);
+    ['save-note','save-note2'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){el.textContent='保存しました';setTimeout(()=>el.textContent='',1500);}
+    });
+  },600);
+}
+
+function bindCalc(){
+  [['inp-name','name','t'],['inp-w','width','n'],['inp-h','height','n'],
+   ['inp-yarn-g','yarn_g','n'],['inp-ship-actual','ship_actual','n'],
+   ['inp-ship-customer','ship_customer','n'],
+   ['inp-time','time_min','n'],['inp-sell','sell','n']].forEach(([id,key,t])=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.value=C[key]??'';
+    el.addEventListener('input',()=>{C[key]=el.value;render();autoSave();});
+  });
+  document.getElementById('inp-backing-type').addEventListener('change',e=>{C.backing_idx=+e.target.value;render();autoSave();});
+  document.getElementById('inp-glue-type').addEventListener('change',e=>{C.glue_idx=+e.target.value;render();autoSave();});
+  document.getElementById('inp-yarn-type').addEventListener('change',e=>{C.yarn_idx=+e.target.value;render();autoSave();});
+  bindChip('chip-cardboard','use_cardboard');
+  bindChip('chip-packing','use_packing');
+}
+function bindChip(id,key){
+  const chip=document.getElementById(id);
+  chip.classList.toggle('on',!!C[key]);
+  chip.addEventListener('click',e=>{e.preventDefault();C[key]=!C[key];chip.classList.toggle('on',C[key]);render();autoSave();});
+}
+
+function bindSettings(){
+  [['s-fabric','fabric_per_cm2'],['s-glue-ratio','glue_ratio'],
+   ['s-cardboard','cardboard'],['s-packing','packing'],['s-margin','margin_cm']].forEach(([id,key])=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.value=S[key]!==undefined?S[key]:'';
+    el.addEventListener('input',()=>{S[key]=parseFloat(el.value)||0;renderBackingSel();renderGlueSel();renderYarnSel();render();autoSave();});
+  });
+
+  const tEl=document.getElementById('s-tape-20m');
+  tEl.value=S.tape_20m_price!==undefined?S.tape_20m_price:1250;
+  tEl.addEventListener('input',()=>{S.tape_20m_price=parseFloat(tEl.value)||0;render();autoSave();});
+
+  const bEl=document.getElementById('s-tape-buf');
+  bEl.value=S.tape_buf_cm!==undefined?S.tape_buf_cm:10;
+  bEl.addEventListener('input',()=>{S.tape_buf_cm=parseFloat(bEl.value)||0;render();autoSave();});
+
+  document.getElementById('backing-list').addEventListener('input',e=>{
+    const item=e.target.closest('.list-item');if(!item)return;
+    const i=+item.dataset.bi;
+    if(e.target.classList.contains('bn')) S.backings[i].name=e.target.value;
+    if(e.target.classList.contains('bp')) S.backings[i].per_cm2=parseFloat(e.target.value)||0;
+    renderBackingSel();render();autoSave();
+  });
+  document.getElementById('backing-list').addEventListener('click',e=>{
+    const tc=e.target.closest('.tape-chip');if(!tc)return;
+    const i=+tc.dataset.ti;
+    S.backings[i].has_tape=!S.backings[i].has_tape;
+    renderBackingList();renderBackingSel();render();autoSave();
+  });
+
+  document.getElementById('glue-list').addEventListener('input',e=>{
+    const item=e.target.closest('.list-item');if(!item)return;
+    const i=+item.dataset.gi;
+    if(e.target.classList.contains('gn')) S.glues[i].name=e.target.value;
+    if(e.target.classList.contains('gp')) S.glues[i].per_g=parseFloat(e.target.value)||0;
+    renderGlueSel();render();autoSave();
+  });
+
+  document.getElementById('yarn-list').addEventListener('input',e=>{
+    const item=e.target.closest('.list-item');if(!item)return;
+    const i=+item.dataset.yi;
+    if(e.target.classList.contains('yn')) S.yarns[i].name=e.target.value;
+    if(e.target.classList.contains('yp')) S.yarns[i].per_g=parseFloat(e.target.value)||0;
+    renderYarnSel();render();autoSave();
+  });
+}
+
+function addBacking(){S.backings.push({name:'裏地 '+(S.backings.length+1),per_cm2:0,has_tape:false});renderBackingList();renderBackingSel();autoSave();}
+function delBacking(i){if(S.backings.length<=1)return;S.backings.splice(i,1);if(C.backing_idx>=S.backings.length)C.backing_idx=S.backings.length-1;renderBackingList();renderBackingSel();render();autoSave();}
+function addGlue(){S.glues.push({name:'接着剤 '+(S.glues.length+1),per_g:0});renderGlueList();renderGlueSel();autoSave();}
+function delGlue(i){if(S.glues.length<=1)return;S.glues.splice(i,1);if(C.glue_idx>=S.glues.length)C.glue_idx=S.glues.length-1;renderGlueList();renderGlueSel();render();autoSave();}
+function addYarn(){S.yarns.push({name:'糸 '+(S.yarns.length+1),per_g:0});renderYarnList();renderYarnSel();autoSave();}
+function delYarn(i){if(S.yarns.length<=1)return;S.yarns.splice(i,1);if(C.yarn_idx>=S.yarns.length)C.yarn_idx=S.yarns.length-1;renderYarnList();renderYarnSel();render();autoSave();}
+
+function loadRec(){try{return JSON.parse(localStorage.getItem(LKEY)||'[]');}catch{return[];}}
+function saveRec(r){try{localStorage.setItem(LKEY,JSON.stringify(r));}catch{}}
+
+function saveRecord(){
+  const r=compute();
+  const recs=loadRec();
+  const d=new Date();
+  const ds=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  recs.unshift({id:Date.now(),date:ds,name:C.name||`${C.width}×${C.height}cm`,
+    width:C.width,height:C.height,backing:r.backingName,glue:r.glueName,yarn:r.yarnName,
+    cost:r.total,sell:r.sell,revenue:r.totalRevenue,shipC:r.shipCustomer,
+    profit:r.profit,pct:r.pct});
+  if(recs.length>100)recs.splice(100);
+  saveRec(recs);
+  const n=document.getElementById('save-note');
+  if(n){n.textContent='記録しました ✓';setTimeout(()=>n.textContent='',2000);}
+  renderRecords();
+}
+
+function deleteRecord(id){saveRec(loadRec().filter(r=>r.id!==id));renderRecords();}
+
+function renderRecords(){
+  const recs=loadRec();
+  const el=document.getElementById('records-content');if(!el)return;
+  if(!recs.length){
+    el.innerHTML='<div class="rec-empty">まだ記録がありません。<br>計算タブの「記録する」ボタンで保存されます。</div>';return;
+  }
+  el.innerHTML=`<div class="rec-wrap"><table class="rec-table"><thead><tr>
+    <th>日付</th><th>商品名</th><th>サイズ</th><th style="text-align:right">売上</th>
+    <th style="text-align:right">原価</th><th style="text-align:right">利益</th><th style="text-align:right">利益率</th><th></th>
+  </tr></thead><tbody>${recs.map(r=>`
+    <tr>
+      <td style="white-space:nowrap;color:var(--fg-muted);font-size:.78rem">${esc(r.date||'')}</td>
+      <td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name||'')}</td>
+      <td style="white-space:nowrap;color:var(--fg-muted)">${r.width||''}×${r.height||''}cm</td>
+      <td class="num">${yen(r.revenue||r.sell)}</td>
+      <td class="num">${yen(r.cost)}</td>
+      <td class="num ${(r.profit||0)>=0?'pp':'pn'}">${yen(r.profit)}</td>
+      <td class="num">${r.pct!==null&&r.pct!==undefined?Math.round(r.pct)+'%':'—'}</td>
+      <td><button class="btn-rec-del" onclick="deleteRecord(${r.id})">✕</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const t=btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+t).classList.add('active');
+    if(t==='records')renderRecords();
+  });
+});
+
+renderBackingList();renderGlueList();renderYarnList();
+renderBackingSel();renderGlueSel();renderYarnSel();
+bindCalc();bindSettings();render();
+
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
